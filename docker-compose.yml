@@ -1,0 +1,52 @@
+# Each node has two ports:
+#   RESP  (5001-5003) — exposed to the host for redis-cli / go-redis
+#   Raft  (6001-6003) — internal cluster traffic only, not exposed to host
+#
+# Peer addresses use Docker service names (node1, node2, node3) so that
+# Raft RPCs resolve correctly inside the bridge network.
+# The -raft flag binds to 0.0.0.0 inside the container; peers dial by
+# service name, e.g. "node2:6002".
+
+services:
+  node1:
+    build: .
+    command: >
+      -id node1
+      -addr :5001
+      -raft :6001
+      -peers "node2=node2:6002,node3=node3:6003"
+    ports:
+      - "5001:5001"   # RESP — connect with: redis-cli -p 5001
+    networks:
+      - distrigo
+    restart: on-failure
+
+  node2:
+    build: .
+    command: >
+      -id node2
+      -addr :5002
+      -raft :6002
+      -peers "node1=node1:6001,node3=node3:6003"
+    ports:
+      - "5002:5002"   # RESP — connect with: redis-cli -p 5002
+    networks:
+      - distrigo
+    restart: on-failure
+
+  node3:
+    build: .
+    command: >
+      -id node3
+      -addr :5003
+      -raft :6003
+      -peers "node1=node1:6001,node2=node2:6002"
+    ports:
+      - "5003:5003"   # RESP — connect with: redis-cli -p 5003
+    networks:
+      - distrigo
+    restart: on-failure
+
+networks:
+  distrigo:
+    driver: bridge
